@@ -1800,6 +1800,10 @@ svg text { font-family: inherit; }
 .lk-low { stroke: var(--lk-low); stroke-width: 1.75; }
 .lk-mid { stroke: var(--lk-mid); stroke-width: 3.5; }
 .lk-hot { stroke: var(--attack); stroke-width: 6; }
+.lk-dir { stroke: var(--attack); stroke-width: 2; }
+.lk-dir-target { stroke: var(--ink); stroke-width: 1.75; stroke-opacity: .75; }
+.arrow-swatch { fill: var(--attack); }
+.lbl-dir { font-size: 11px; font-weight: 600; fill: var(--ink); }
 .node { fill: var(--panel); stroke: var(--muted); stroke-width: 1.25; }
 .gnode { fill: var(--panel); stroke: var(--ink); stroke-width: 1.5; }
 .host { fill: var(--muted); }
@@ -2253,6 +2257,12 @@ function swatchLine(cls, style) {
   const icon = svg('svg', {width: 22, height: 12, viewBox: '0 0 22 12', 'aria-hidden': 'true'});
   const line = svg('line', {x1: 1, y1: 6, x2: 21, y2: 6, class: cls}, icon);
   if (style) for (const k in style) line.style.setProperty(k, style[k]);
+  return icon;
+}
+function swatchArrow() {
+  const icon = svg('svg', {width: 22, height: 12, viewBox: '0 0 22 12', 'aria-hidden': 'true'});
+  svg('line', {x1: 1, y1: 6, x2: 14, y2: 6, class: 'lk-dir'}, icon);
+  svg('polygon', {points: '13,1 21,6 13,11', class: 'arrow-swatch'}, icon);
   return icon;
 }
 function hatchDefs(svgNode, id) {
@@ -3161,6 +3171,26 @@ function drawMap() {
   const shown = rerouteToShow(r);
   const util = (p, q) => last ? Math.max(linkUtil(last, p + '-' + q) ?? -1, linkUtil(last, q + '-' + p) ?? -1) : -1;
   const cls = (v) => v < 0 ? 'lk lk-none' : 'lk ' + (v >= thr ? 'lk-hot' : v >= 0.5 ? 'lk-mid' : 'lk-low');
+  // Direction: links are full duplex, so every link is drawn once, and an arrowhead shows which way the
+  // measured traffic flows (congested links, the target link, and the old and new path of a move).
+  const defs = svg('defs', {}, node);
+  const arrowDef = (id, fill) => {
+    const mk = svg('marker', {id, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 11, markerHeight: 11, markerUnits: 'userSpaceOnUse', orient: 'auto'}, defs);
+    svg('path', {d: 'M0,0 L10,5 L0,10 z'}, mk).style.fill = fill;
+  };
+  arrowDef('arr-hot', 'var(--attack)'); arrowDef('arr-target', 'var(--ink)'); arrowDef('arr-old', 'var(--ink)');
+  arrowDef('arr-new', sysColor(r && r.info && r.info.system));
+  const dirOf = (p, q) => {   // the direction of a link that carries the larger measured load
+    const a = last ? linkUtil(last, p + '-' + q) ?? -1 : -1, b = last ? linkUtil(last, q + '-' + p) ?? -1 : -1;
+    return a >= b ? [p, q] : [q, p];
+  };
+  const dirArrow = (from, to, c, mk) => {   // short arrow on the link, pointing the way the traffic flows
+    if (!P[from] || !P[to]) return;
+    const [x1, y1] = P[from], [x2, y2] = P[to];
+    const a = svg('line', {x1: r1(x1 + (x2 - x1) * 0.3), y1: r1(y1 + (y2 - y1) * 0.3), x2: r1(x1 + (x2 - x1) * 0.72), y2: r1(y1 + (y2 - y1) * 0.72),
+                           class: c, 'marker-end': 'url(#' + mk + ')'}, node);
+    svg('title', {}, a).textContent = 'Traffic flows from ' + nodeName(from, topo, true) + ' to ' + nodeName(to, topo, true);
+  };
   let P, hot = [];
   const labelled = new Set();
   if (topo === 'fat_tree') {
@@ -3173,7 +3203,7 @@ function drawMap() {
     for (const [label, key] of [['Core', 'c'], ['Agg.', 'a'], ['Edge', 'e'], ['Hosts', 'h']]) stext(node, 2, L.rows[key] + 5, label, 'ax');
     for (const [p, q] of FAT_LINKS) {
       const v = p[0] === 'c' ? util(p, q) : -1;
-      if (v >= thr) hot.push([p + '-' + q, v, (P[p][0] + P[q][0]) / 2, (P[p][1] + P[q][1]) / 2]);
+      if (v >= thr) { const [f, t] = dirOf(p, q); hot.push([f + '-' + t, v, (P[p][0] + P[q][0]) / 2, (P[p][1] + P[q][1]) / 2, f, t]); }
       svg('line', {x1: r1(P[p][0]), y1: r1(P[p][1]), x2: r1(P[q][0]), y2: r1(P[q][1]), class: cls(v)}, node);
     }
   } else {
@@ -3186,7 +3216,7 @@ function drawMap() {
     for (const [a, b] of edges) {
       if (!P[a] || !P[b]) continue;
       const v = util(a, b);
-      if (v >= thr) { hot.push([a + '-' + b, v, (P[a][0] + P[b][0]) / 2, (P[a][1] + P[b][1]) / 2]); labelled.add(a); labelled.add(b); }
+      if (v >= thr) { const [f, t] = dirOf(a, b); hot.push([f + '-' + t, v, (P[a][0] + P[b][0]) / 2, (P[a][1] + P[b][1]) / 2, f, t]); labelled.add(a); labelled.add(b); }
       const line = svg('line', {x1: r1(P[a][0]), y1: r1(P[a][1]), x2: r1(P[b][0]), y2: r1(P[b][1]), class: cls(v)}, node);
       svg('title', {}, line).textContent = linkName(a + '-' + b, topo, true) + (v >= 0 ? ': ' + Math.round(v * 100) + '% full' : '');
     }
@@ -3202,12 +3232,20 @@ function drawMap() {
     }
     P.__labels = drawLater;
   }
-  if (shown) {   // reroute: new path in the system colour, old path dashed
+  for (const [, , , , f, t] of hot) dirArrow(f, t, 'lk-dir', 'arr-hot');
+  if (target && !hot.some((x) => x[0] === target)) { const [f, t] = target.split('-'); if (f && t) dirArrow(f, t, 'lk-dir-target', 'arr-target'); }
+  if (shown) {   // reroute: new path in the system colour, old path dashed; arrowheads point from source to destination
     const g = svg('g', {}, node);
     g.style.opacity = String(shown.opacity);
     const pts = (path) => path.filter((n) => P[n]).map((n) => r1(P[n][0]) + ',' + r1(P[n][1])).join(' ');
-    if (shown.rr.ev.old.length) svg('polyline', {points: pts(shown.rr.ev.old), class: 'old-path'}, g);
-    svg('polyline', {points: pts(shown.rr.ev.new), class: 'new-path'}, g).style.stroke = sysColor(r && r.info && r.info.system);
+    if (shown.rr.ev.old.length) svg('polyline', {points: pts(shown.rr.ev.old), class: 'old-path', 'marker-mid': 'url(#arr-old)', 'marker-end': 'url(#arr-old)'}, g);
+    svg('polyline', {points: pts(shown.rr.ev.new), class: 'new-path', 'marker-mid': 'url(#arr-new)', 'marker-end': 'url(#arr-new)'}, g).style.stroke = sysColor(r && r.info && r.info.system);
+    const route = shown.rr.ev.new.filter((n) => P[n]);
+    if (route.length > 1) {
+      const [sx, sy] = P[route[0]], [dx, dy] = P[route[route.length - 1]];
+      stext(g, sx, sy - 14, 'from ' + nodeName(route[0], topo), 'lbl-dir halo', 'middle');
+      stext(g, dx, dy - 14, 'to ' + nodeName(route[route.length - 1], topo), 'lbl-dir halo', 'middle');
+    }
   }
   if (topo === 'fat_tree') {
     for (const n in P) {
@@ -3219,13 +3257,15 @@ function drawMap() {
   } else {
     placeLabels(node, P.__labels || [], Object.values(P).filter(Array.isArray), w, h);
   }
-  for (const [, v, x, y] of hot) stext(node, x + 8, y - 6, '⚠ ' + Math.round(v * 100) + '%', 'lbl-hot halo');
+  for (const [, v, x, y, f, t] of hot) stext(node, x + 8, y - 6, '⚠ ' + nodeName(f, topo) + ' → ' + nodeName(t, topo) + ' ' + Math.round(v * 100) + '%', 'lbl-hot halo');
   const caption = $('caption-map');
   if (shown) {
     const ev = shown.rr.ev;
     const names = (p) => p.filter((n) => n[0] !== 'h' || topo === 'fat_tree').map((n) => nodeName(n, topo)).join(' › ');
+    const ends = ev.new.filter((n) => n[0] !== 'h' || topo === 'fat_tree');
+    const fromTo = ends.length > 1 ? ' from ' + nodeName(ends[0], topo) + ' to ' + nodeName(ends[ends.length - 1], topo) : '';
     caption.replaceChildren(markerIcon(r.info && r.info.system, 14),
-      el('span', 'cap-text', (viewing() ? 'Last move of this run: ' : 'Traffic moved: ') + names(ev.old) + '  →  ' + names(ev.new)));
+      el('span', 'cap-text', (viewing() ? 'Last move of this run' : 'Traffic moved') + fromTo + ' — old path: ' + names(ev.old) + '  ⇒  new path: ' + names(ev.new)));
   } else if (!last) {
     caption.replaceChildren(el('span', 'muted', r && r.t0 !== null ? 'Waiting for link stats…' : 'Grey: no traffic measured yet.'));
   } else {
@@ -3257,6 +3297,7 @@ function buildMapLegend() {
     items.push(legendItem(text, 'Link ' + text + ': ' + help, swatchLine(c)));
   items.push(legendItem('old path', 'Dashed: where the traffic went before the latest move.', swatchLine('old-path')));
   items.push(legendItem('new path', 'Where the controller moved the traffic, in the colour of the system.', swatchLine('new-path', {stroke: 'var(--ink)'})));
+  items.push(legendItem('direction', 'Arrowheads show which way the traffic flows: on congested links, on the attacked target link, and along the old and new path of a move (from source to destination).', swatchArrow()));
   $('legend-map').replaceChildren(...items);
 }
 

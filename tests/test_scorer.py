@@ -112,3 +112,20 @@ def test_normalised_drift_is_the_mean_link_utilisation(config):
 def test_normalised_drift_is_off_by_default(config):
     s = PathScorer(config, long_detour_stats())
     assert s.dpp_score(CUR, 0, CUR) == pytest.approx(-(0.1 + 0.95))
+
+
+def test_bottleneck_drift_is_the_largest_link_utilisation(config):
+    """Revision-3 variant: drift = max post-move utilisation on the path (K = 0 on the current path)."""
+    config.dpp_bottleneck = True
+    s = PathScorer(config, long_detour_stats())
+    assert s.dpp_score(CUR, 0, CUR) == pytest.approx(-0.95)
+    k = s._normalised_rule_cost(DETOUR, CUR)
+    assert s.dpp_score(DETOUR, 0, CUR) == pytest.approx(-0.25 - config.dpp_weight_V0 * k)
+
+
+def test_bottleneck_drift_with_small_v0_passes_the_deadband_on_a_long_detour(config):
+    """The summed drift holds the flow (test above); bottleneck drift with V0 = 0.1 moves it."""
+    config.dpp_bottleneck = True
+    config.dpp_weight_V0 = 0.1
+    s = PathScorer(config, long_detour_stats())
+    assert s.dpp_score(DETOUR, 0, CUR) - s.dpp_score(CUR, 0, CUR) > config.hysteresis_epsilon

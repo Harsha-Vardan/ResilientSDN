@@ -5,7 +5,8 @@ number, table and figure of the paper *"ResilientSDN: Capacity-Verified, Hystere
 Against Link-Flooding Attacks in Software-Defined Networks"*.
 
 All results in the paper were produced exactly this way on one laptop (Intel Core i7-1255U, 8 GB RAM,
-Windows 11 Home, WSL2 Ubuntu 26.04.1 LTS, kernel 6.6.87) on 9-10 November 2026.
+Windows 11 Home, WSL2 Ubuntu 26.04.1 LTS, kernel 6.6.87) between 9 and 16 November 2026 (main campaign
+on 9-10 November, revision experiments after each review round).
 
 ---
 
@@ -38,7 +39,7 @@ git clone https://github.com/DoniAdithya07/ResilientSDN.git ~/ResilientSDN   # o
 cd ~/ResilientSDN
 sudo sh setup_wsl.sh                 # apt packages + Ryu 4.34 in a Python 3.9 venv at /opt/ryu (~10 min)
 ./run.sh sh docker/check_env.sh      # must print tool versions, "OK", and "Results: 0% dropped"
-python3 -m pytest -q                 # unit tests (218 pass)
+python3 -m pytest -q                 # unit tests (220 pass)
 ```
 Keep Docker Desktop closed while running experiments (it shares the WSL kernel), keep the laptop on
 AC power and stop it from sleeping.
@@ -125,6 +126,27 @@ It runs (this is the content of `run_r2.sh`):
 `--attacker ecmp` changes the traffic plan (it is recorded as `"attacker": "ecmp_aware"` in each run's
 `meta.json`), so `r2_ecmp_attacker` contains its own static and ResilientSDN runs instead of reusing section 4.
 
+### 4d. Revision-3 experiments (added after Google Deep Review round 3, about 4-5 hours)
+
+```sh
+./run_r3.sh                          # resumable, like run_full.sh
+```
+It runs (this is the content of `run_r3.sh`):
+```sh
+./run.sh python3 -m evaluation.experiment --out results/r3_ablation_b_split --topologies fat_tree \
+    --systems rsdn_no_cooldown rsdn_relief_bypass --scenarios S3 --runs 10
+./run.sh python3 -m evaluation.experiment --out results/r3_capacity_only_wan --topologies nsfnet internet2 geant \
+    --systems rsdn_capacity_only --scenarios S3 S5 S9 S11 --runs 5
+./run.sh python3 -m evaluation.experiment --out results/r3_bottleneck_drift --topologies nsfnet internet2 geant \
+    --systems rsdn_bottleneck_drift --scenarios S3 S5 S9 S11 --runs 5
+```
+
+| Part | What it tests | Runs |
+|---|---|---|
+| `r3_ablation_b_split` | ablation B' on fat-tree S3 (seeds of ablation B): cooldown removed with the deadband kept (`rsdn_no_cooldown`, `cooldown_seconds: 0`) and deadband removed with the cooldown kept (`rsdn_relief_bypass`) | 20 |
+| `r3_capacity_only_wan` | capacity filter only (ablation A's variant, in essence Hedera Global First Fit per congested link) on the backbones, paired with `wan_5runs` | 60 |
+| `r3_bottleneck_drift` | bottleneck drift (largest post-move link utilisation on the path instead of the sum) with a rescaled penalty weight `dpp_weight_V0: 0.1` (`rsdn_bottleneck_drift`, option `dpp_bottleneck`) on the backbones, paired with `wan_5runs` | 60 |
+
 **Do not wrap the command in a shell whose command line contains the words `ryu-manager`, `iperf3`,
 `tcpreplay` or `ping -i`**: the runner's cleanup step kills processes matching those words.
 
@@ -150,8 +172,11 @@ matches the data. A value that cannot be computed yet appears in red as `??` ins
 | Fig. WAN | `make_assets.py` → `figures/wan.pdf` | `results/wan_5runs` |
 | Fig. ablation | `make_assets.py` → `figures/ablation.pdf` | `results/ablation_*` |
 | Fig. Internet2 S11 timeline | `make_assets.py` → `figures/timeline_inet_s11.pdf` | `results/wan_5runs/runs/internet2_*_S11_0` |
-| Table VIII (revision experiments on the backbones) and Sec. VI-I numbers | `make_assets.py` → `generated/tables_r1.tex`, `numbers.tex` | `results/r1_wan_variants`, `results/r2_gate_all`, `results/r2_capacity_loo_wan`, paired with `results/wan_5runs` |
-| Table VII (legitimate throughput and ping RTT) | `make_assets.py` → `generated/table_legit.tex` | `results/fattree_5runs`, `results/wan_5runs` |
+| Table IX (revision experiments on the backbones) and Sec. VI-I numbers | `make_assets.py` → `generated/tables_r1.tex`, `numbers.tex` | `results/r1_wan_variants`, `results/r2_gate_all`, `results/r2_capacity_loo_wan`, `results/r3_capacity_only_wan`, `results/r3_bottleneck_drift`, paired with `results/wan_5runs` |
+| Table X (ECMP-aware attacker per scenario) | `make_assets.py` → `generated/table_ea.tex` | `results/r2_ecmp_attacker` |
+| Table VII (ablation per scenario) and B' rows of Table VI | `make_assets.py` → `generated/tables.tex` | `results/ablation_*`, `results/r1_capacity_loo`, `results/r2_sequential`, `results/r3_ablation_b_split` |
+| S10 per pattern, reroute-decision candidate counts (Sec. VI-G, VI-I) | `make_assets.py` → `numbers.tex` (`FatTenPat*`, `Dec*`) | `results/fattree_5runs/runs/*/meta.json`, `results/wan_5runs/runs/*/events.jsonl` |
+| Table VIII (legitimate throughput and ping RTT) | `make_assets.py` → `generated/table_legit.tex` | `results/fattree_5runs`, `results/wan_5runs` |
 | ECMP-aware attacker (Sec. VI-I) | `make_assets.py` → `numbers.tex` (`Ea*`) | `results/r2_ecmp_attacker` |
 | Ablation A'' (Table VI, Fig. 4) | `make_assets.py` | `results/r2_sequential`, paired with `results/ablation_A` |
 | Static ECMP rows in Table IV | `make_assets.py` → `generated/tables.tex` | `results/r1_ecmp` |

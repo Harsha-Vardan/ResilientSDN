@@ -19,6 +19,9 @@ class PathScorer:
         # Revision-1 variant (off by default): divide the drift by the number of links, so a
         # longer detour is not penalised for its length alone (reviewer suggestion).
         self.normalise_drift = getattr(config, 'dpp_normalise_by_length', False)
+        # Revision-3 variant (off by default): bottleneck drift, the largest post-move link
+        # utilisation on the path instead of the sum over its links (used with a smaller V0).
+        self.bottleneck_drift = getattr(config, 'dpp_bottleneck', False)
         self.link_stats = link_stats or {}
 
     def update_stats(self, link_stats):
@@ -61,7 +64,9 @@ class PathScorer:
         terms = [(stats['bytes_per_sec'] + traffic_to_move) / stats['capacity']
                  for l in path_links(path) for stats in (self.link_stats.get(l),) if stats is not None]
         drift = sum(terms)
-        if self.normalise_drift and terms:
+        if self.bottleneck_drift:
+            drift = max(terms, default=0.0)
+        elif self.normalise_drift and terms:
             drift /= len(terms)
         return -drift - self.V0 * self._normalised_rule_cost(path, current_path)
 

@@ -55,6 +55,14 @@ VARIANTS = {
     'rsdn_gate_all': ('resilient_sdn', {'controller': {'dpp_gate_all_candidates': True}}),
     'rsdn_sequential_only': ('resilient_sdn', {'ablation': {
         'hysteresis': False, 'scoring': 'shortest', 'trend_trigger': False, 'capacity_filter': False}}),
+    # Revision 3 (reviewer requests): the sequential capacity-filter heuristic (ablation A,
+    # 'Capacity filter only') on the backbones; bottleneck drift with a rescaled V0 = 0.1 as a
+    # candidate fix for the long-detour hold; and the per-flow cooldown removed with the deadband
+    # kept (rsdn_relief_bypass removes the deadband and keeps the cooldown) to split ablation B.
+    'rsdn_capacity_only': ('resilient_sdn', {'ablation': {
+        'hysteresis': False, 'scoring': 'shortest', 'trend_trigger': False}}),
+    'rsdn_bottleneck_drift': ('resilient_sdn', {'controller': {'dpp_bottleneck': True, 'dpp_weight_V0': 0.1}}),
+    'rsdn_no_cooldown': ('resilient_sdn', {'controller': {'cooldown_seconds': 0}}),
 }
 
 LEGIT_PORT, BURST_PORT, BACKGROUND_PORT, ATTACK_PORT = 5201, 5251, 5301, 5401
