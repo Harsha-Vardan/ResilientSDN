@@ -31,8 +31,10 @@ attacker cannot easily drive it into oscillation. Our TE-LP and $k$-MP baselines
   (Sec.~\ref{sec:sim}), but it omits queueing, sub-second TCP dynamics and control-plane delay, so
   its absolute times and losses are not emulation results.
 \item \textbf{TCP model.} TCP is a fluid max-min share with an assumed 5\,\% floor on saturated
-  links; real TCP under a UDP flood may fare worse (timeouts) or better. FCT differences between
-  systems are more reliable than FCT values.
+  links; real TCP under a UDP flood may fare worse (timeouts) or better. Varying the floor between 0
+  and 10\,\% changes the FCT of the rerouting systems by at most 6\,\% and does not reorder the two
+  groups of systems (Sec.~\ref{sec:results}), but it is no substitute for packet-level TCP. FCT
+  differences between systems are more reliable than FCT values.
 \item \textbf{The LP baselines are idealised.} TE-LP and TE-$\Phi$ split flows fractionally, solve to optimality every
   interval and react on one poll; a deployable TE would round, rate-limit updates and pay
   select-group rule costs. Its results bound what any path-based TE could achieve with the same

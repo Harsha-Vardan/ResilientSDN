@@ -12,6 +12,7 @@ drop-in files. `main_rev4.tex` shows them assembled and compiles on its own (`sh
 \input{generated/validation_macros}                   % \valRhoTime, \valAgree, ...
 \input{generated/count_macros}                        % \simRunsUDP, ...
 \input{generated/sweep_macros}                        % \sweepN, \sweepDefend, \sweepGap..., (Sec. sweep)
+\input{generated/floor_macros}                        % \floorMaxRel, \floorFlips, ... (TCP floor check)
 ```
 Paths assume `paper_rev4/` is the working directory; adjust them, or copy `generated/` and
 `figures/` next to the paper's `main.tex`.

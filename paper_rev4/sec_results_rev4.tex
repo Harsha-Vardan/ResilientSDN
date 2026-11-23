@@ -56,7 +56,17 @@ over 30 seeds; symmetric-log axis).}\label{fig:wan_adversarial}
 \end{figure*}
 
 \paragraph{Closing the pulse loophole (v3)}
-% V3-PARAGRAPH (filled in from generated/tab_v3.tex and false_alarm_bursty.csv)
+Table~\ref{tab:v3} adds the duty-cycle trigger (react when a link is above $\theta$ now and in at
+least 3 of the last 6 polls) to ResilientSDN (+Duty) and to v2 (v3), over 13 scenarios, four
+topologies and 30 seeds. It removes the pulse evasion of S7 on every topology (32 to 6\,s above
+$\theta$) and lowers S10 from 16.2 to 13.6\,s (v2: 10.2 to 8.2\,s); averaged over all attacks, v3
+keeps a target above $\theta$ for 11.8\,s, against 15.3\,s for v2 and 34.8\,s for ResilientSDN.
+The cost is small: no move without an attack, neither in S1 nor under the legitimate bursts of SB
+(where simple reactive rerouting made 14.8 moves per run and TE-$\Phi$ 2.4), unchanged secondary
+congestion, and 0.1 more moves per run. In the paired tests (52 cells, Holm-corrected), v3 has
+significantly less time above $\theta$ than ResilientSDN in 16 cells and more in none, and makes
+significantly more moves in 8. The randomised sweep (Sec.~\ref{sec:sweep}) confirms the effect for
+random pulse periods and duty cycles.
 \IfFileExists{generated/tab_v3.tex}{\input{generated/tab_v3}}{}
 
 \IfFileExists{generated/tab_wan_ext.tex}{\input{generated/tab_wan_ext}}{}
@@ -110,6 +120,13 @@ partly because its oscillation moves the transfers between congested paths. Resi
 kept the mean FCT at 2.0--3.3\,s in every cell (Table~\ref{tab:sim_fct}, Fig.~\ref{fig:tcp_fct});
 TE-$\Phi$ was closest to ideal (2.0--2.4\,s). The adaptive attacker (S14) is the scenario where
 ResilientSDN's FCT rises most (2.6--3.3\,s), because victims are hit again after each move.
+The fluid TCP model assumes that a TCP flow keeps at least 5\,\% of a saturated link. Re-running
+S6 and S11--S14 with this floor at 0 and at 10\,\% (\floorCells{} topology--scenario cells, 30
+seeds) changed the mean FCT of ResilientSDN, v2 and TE-$\Phi$ by at most 6\,\% and left the median
+cell unchanged; static routing and simple reactive rerouting are more sensitive (up to
+\floorMaxRel\,\%). The ranking changed in \floorFlips{} cells, but only between systems within
+0.1\,s of each other (TE-$\Phi$, ResilientSDN, v2) or between static and simple reactive; the two
+groups never swapped, so the TCP conclusions do not depend on the floor.
 
 \input{generated/tab_sim_fct}
 \begin{figure*}[t]\centering

@@ -1,6 +1,5 @@
 % Revision 4 -- proposed abstract, contribution list and conclusion. Every number is from
-% paper_rev4/generated/ (simulation, 30 seeds) unless it says emulation. Lines marked TODO-V3 wait for
-% the duty-cycle results (results/post_campaign.ps1).
+% paper_rev4/generated/ (simulation, 30 seeds) unless it says emulation.
 
 % ---- Abstract ----------------------------------------------------------------------------------
 \begin{abstract}
@@ -65,7 +64,9 @@ over 1{,}945 instances of the general problem confirmed most of the ranking of t
 worse than static routing in a third of the instances --- and the pulse loophole that
 Proposition~\ref{prop:evasion} predicts; it showed that a duty-cycle trigger closes
 most of it, and showed that against a routing-aware rolling attacker every reactive system,
-ResilientSDN included, is sometimes worse than not rerouting at all. Future work is to
-evaluate the v2/v3 extensions in emulation, to add the multi-link, adaptive and TCP scenarios to the
-Mininet testbed, and to combine single-path rerouting with limited splitting where it pays off.
-% TODO-V3: add one sentence on the duty-cycle trigger once its numbers are in.
+ResilientSDN included, is sometimes worse than not rerouting at all. In the scenario simulations the
+duty-cycle trigger cut the pulse attack S7 from 32 to 6\,s above the threshold without a single move
+in the absence of an attack, and brought the combined variant (v3) to 11.8\,s per attack. Future work
+is to evaluate the v2/v3 extensions in emulation, to detect re-targeting so that rerouting stops when
+the attack follows the victims, to add the multi-link, adaptive and TCP scenarios to the Mininet
+testbed, and to combine single-path rerouting with limited splitting where it pays off.
