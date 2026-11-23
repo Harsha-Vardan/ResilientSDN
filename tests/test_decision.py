@@ -149,3 +149,60 @@ def test_move_load_never_negative():
     assert stats[('s1', 's2')]['bytes_per_sec'] == 0.0
     assert stats[('s1', 's2')]['utilisation'] == 0.0
     assert CAPACITY == stats[('s1', 's2')]['capacity']
+
+
+# --- pursuit hold (revision 4): stop moving flows that an attacker follows ------------------------
+
+def _pursuit_core(config, clock, **opts):
+    for k, v in opts.items():
+        setattr(config, k, v)
+    return ResilientDecision(diamond(), config, rng=random.Random(0), clock=clock)
+
+
+def _logging_env(net, events):
+    env = net.env()
+    env.log = lambda kind, **data: events.append((kind, data))
+    return env
+
+
+def test_pursuit_pins_a_flow_whose_new_path_is_attacked(config, clock):
+    g = diamond()
+    net = FakeNet(g, [('a', ['s1', 's2', 's4'], 500.0), ('b', ['s1', 's2', 's4'], 400.0)])
+    core = _pursuit_core(config, clock, pursuit_window=8, pursuit_limit=1, pursuit_hold=30)
+    events = []
+    for _ in range(config.N_intervals):
+        core.on_interval(net.stats(), _logging_env(net, events))
+    assert net.paths['a'] == ['s1', 's3', 's4'] and not core.pinned('a')
+    # the attacker follows: new traffic on the detour pushes s3-s4 above theta
+    net.flows['z'] = Flow('z', 's3', 's4')
+    net.paths['z'], net.rates['z'] = ['s3', 's4'], 400.0
+    core.on_interval(net.stats(), _logging_env(net, events))
+    assert core.pinned('a')
+    assert [k for k, _ in events].count('pinned') == 1
+    # a pinned flow is not moved, whatever the congestion
+    assert core._try_reroute(net.flows['a'], ('s3', 's4'), 500.0, net.stats(), _logging_env(net, events)) is False
+    assert events[-1][0] == 'held_pursuit'
+
+
+def test_no_pursuit_when_the_detour_stays_below_theta(config, clock):
+    g = diamond()
+    net = FakeNet(g, [('a', ['s1', 's2', 's4'], 500.0), ('b', ['s1', 's2', 's4'], 400.0)])
+    core = _pursuit_core(config, clock, pursuit_window=8, pursuit_limit=1, pursuit_hold=30)
+    events = []
+    for _ in range(config.N_intervals + 10):
+        core.on_interval(net.stats(), _logging_env(net, events))
+    assert not core.pinned('a')
+    assert not any(k in ('pursuit', 'pinned') for k, _ in events)
+
+
+def test_pursuit_off_by_default(config, clock):
+    g = diamond()
+    net = FakeNet(g, [('a', ['s1', 's2', 's4'], 500.0), ('b', ['s1', 's2', 's4'], 400.0)])
+    core = ResilientDecision(g, config, rng=random.Random(0), clock=clock)
+    events = []
+    for _ in range(config.N_intervals):
+        core.on_interval(net.stats(), _logging_env(net, events))
+    net.flows['z'] = Flow('z', 's3', 's4')
+    net.paths['z'], net.rates['z'] = ['s3', 's4'], 400.0
+    core.on_interval(net.stats(), _logging_env(net, events))
+    assert core.pursuit_window == 0 and core._recent == {} and not core.pinned('a')

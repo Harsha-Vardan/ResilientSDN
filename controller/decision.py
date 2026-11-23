@@ -31,6 +31,12 @@ Two extensions, both off by default so the published configuration is unchanged:
   fallback_least_loaded when no candidate passes the filter, move the flow to the path with the
                         lowest post-move bottleneck utilisation if that is below the projected
                         utilisation of e (partial relief instead of none; cooldown still applies)
+  pursuit_window        (revision 4) pursuit hold against attackers that follow rerouted flows.
+                        A capacity-filtered move leaves every link of the new path <= theta for
+                        the measured rates (Proposition 2), so if a link of that path goes above
+                        theta within pursuit_window polls, the demand changed after the move.
+                        After pursuit_limit such events a flow is pinned for pursuit_hold polls:
+                        moving it again would only move the congestion. 0 = off (default).
 """
 from dataclasses import dataclass
 from typing import Callable
@@ -82,8 +88,37 @@ class ResilientDecision:
         self.scorer = PathScorer(cfg)
         self.hysteresis = HysteresisManager(cfg, **kw)
         self.ablation = ablation
+        self.pursuit_window = getattr(cfg, 'pursuit_window', 0) or 0
+        self.pursuit_limit = getattr(cfg, 'pursuit_limit', 1)
+        self.pursuit_hold = getattr(cfg, 'pursuit_hold', 30)
+        self._tick = 0
+        self._recent = {}     # flow id -> (poll of the move, links of the new path)
+        self._pursuits = {}   # flow id -> polls at which the flow was pursued
+        self._pinned = {}     # flow id -> last poll of its hold
+
+    def pinned(self, flow_id):
+        return self._pinned.get(flow_id, 0) >= self._tick
+
+    def _check_pursuit(self, link_stats, env):
+        """Record pursuits: a recently moved flow whose new path went above theta again."""
+        th = self.detector.threshold
+        hot = {l for l, s in link_stats.items() if s['utilisation'] > th}
+        for fid, (t, links) in list(self._recent.items()):
+            if self._tick - t > self.pursuit_window:
+                del self._recent[fid]
+            elif links & hot:
+                del self._recent[fid]
+                ev = [p for p in self._pursuits.get(fid, []) if self._tick - p <= self.pursuit_hold] + [self._tick]
+                self._pursuits[fid] = ev
+                env.log('pursuit', flow=fid, links=sorted(link_key(l) for l in links & hot), count=len(ev))
+                if len(ev) >= self.pursuit_limit:
+                    self._pinned[fid] = self._tick + self.pursuit_hold
+                    env.log('pinned', flow=fid, until_poll=self._pinned[fid])
 
     def on_interval(self, link_stats, env: Env):
+        self._tick += 1
+        if self.pursuit_window:
+            self._check_pursuit(link_stats, env)
         congested = self.detector.update(link_stats)
         if not congested:
             return
@@ -107,6 +142,9 @@ class ResilientDecision:
                 env.log('unresolved', link=link_key(link), excess=round(excess, 1))
 
     def _try_reroute(self, flow, link, traffic, projected, env) -> bool:
+        if self.pursuit_window and self.pinned(flow.id):
+            env.log('held_pursuit', flow=flow.id, link=link_key(link))
+            return False
         current = env.switch_path(flow.id)
         without = {l: dict(s) for l, s in projected.items()}
         move_load(without, current, -traffic)   # the network if this flow left
@@ -161,6 +199,9 @@ class ResilientDecision:
         if not env.set_path(flow, best, why):
             return False
         self.hysteresis.record_reroute(flow.id, new_dpp, best, old_path=current)
+        if self.pursuit_window and not fallback:
+            # fallback moves may land on a hot path by design, so they are no evidence of pursuit
+            self._recent[flow.id] = (self._tick, set(path_links(best)))
         move_load(projected, current, -traffic)
         move_load(projected, best, traffic)
         return True

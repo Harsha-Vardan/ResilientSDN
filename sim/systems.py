@@ -250,6 +250,9 @@ V2 = {'order_by_severity': True, 'fallback_least_loaded': True,
 
 DUTY = {'duty_window': 6, 'duty_fraction': 0.5}
 
+# 8 polls (16 s) covers the rolling attacker's 10 s re-aim; a pursued flow stays put for 30 polls (60 s)
+PURSUIT = {'pursuit_window': 8, 'pursuit_limit': 1, 'pursuit_hold': 30}
+
 SYSTEMS = {
     'static': Static,
     'static_ecmp': StaticEcmp,
@@ -266,6 +269,9 @@ SYSTEMS = {
     # revision 4, duty-cycle trigger against pulsing attacks (controller/detector.py)
     'rsdn_duty': lambda g, c, r: Resilient(g, c, r, DUTY),
     'resilient_sdn_v3': lambda g, c, r: Resilient(g, c, r, {**V2, **DUTY}),
+    # revision 4, pursuit hold against attackers that follow rerouted flows (controller/decision.py)
+    'rsdn_pursuit': lambda g, c, r: Resilient(g, c, r, PURSUIT),
+    'resilient_sdn_v4': lambda g, c, r: Resilient(g, c, r, {**V2, **DUTY, **PURSUIT}),
 }
 
 
